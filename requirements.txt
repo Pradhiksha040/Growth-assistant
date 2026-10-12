@@ -1,0 +1,2 @@
+# The Lenny Growth Assistant - Dependencies
+-r backend/requirements.txt

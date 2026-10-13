@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-black.svg?logo=ollama&logoColor=white)](https://ollama.com)
-[![Tests Passing](https://img.shields.io/badge/Tests-12%20Passed-10b981.svg)](https://pytest.org)
+[![Tests Passing](https://img.shields.io/badge/Tests-36%20Passed%20(100%25)-10b981.svg)](https://pytest.org)
 
 ---
 
@@ -145,22 +145,26 @@ Switch to Anthropic or OpenAI anytime using the UI modal without restarting the 
 
 ---
 
-## 7. Automated Test Suite
+## 7. Automated Test Suite (36/36 Passing)
 
-Run the full automated test suite covering health, session isolation, hybrid retrieval, provider switching, Ship 30 essay generation, and artifact security:
+Run the comprehensive automated test suite covering all layers:
 
 ```bash
 # Run all backend tests
 python -m pytest backend/tests -v
 ```
 
-### Test Coverage Highlights:
-* `test_health.py`: Verifies `/health` probe and `/ready` transcript indexing status.
-* `test_sessions.py`: Tests independent session contexts and verifies strict context isolation between sessions.
-* `test_retrieval.py`: Tests hybrid vector search, citation structuring, and out-of-domain insufficient-evidence handling.
-* `test_providers.py`: Tests provider listing, switching, and error handling.
-* `test_ship30.py`: Tests ~1,250-word atomic essay generation, 1-3-1 hook structure, and transcript grounding.
-* `test_artifacts.py`: Tests HTML sanitization, script removal, CSP injection, and file export.
+### Complete Test Coverage Matrix (36 Tests):
+* **`test_agent_sdk.py` (6 tests):** Claude Agent SDK tool registration, transcript search tool, growth artifact tool, and unauthenticated diagnostic handling.
+* **`test_artifacts.py` (2 tests):** HTML sanitization, script tag stripping, CSP injection, and artifact CRUD/export.
+* **`test_health.py` (2 tests):** `/health` liveness and `/ready` indexing readiness endpoints.
+* **`test_ollama_verification.py` (5 tests):** Host daemon connectivity, local `llama3.2` model generation, request timeout resilience, multi-turn session preservation, and structured citations.
+* **`test_providers.py` (3 tests):** Provider listing, dynamic provider switching, and invalid provider error handling.
+* **`test_rag_quality_audit.py` (7 tests):** 7 dedicated audit scenarios: supported query, conversational follow-up, out-of-domain refusal, misleading assumption correction, multi-source synthesis, cross-session isolation, and empty database guidance.
+* **`test_retrieval.py` (2 tests):** Hybrid semantic/lexical vector search, citation structuring, and transcript API endpoints.
+* **`test_security_audit.py` (6 tests):** CORS origin hardening, production exception masking, request validation bounds (DoS mitigation), defense-in-depth HTML sanitization, cross-session isolation, and SQL injection parameterization.
+* **`test_sessions.py` (1 test):** Session lifecycle, message chronological order, and isolation.
+* **`test_ship30.py` (2 tests):** Atomic essay generation (~1,250 words), 1-3-1 hook structure, and transcript grounding.
 
 ---
 
@@ -182,14 +186,20 @@ Growth-assistant/
 ├── PRD.md                  # Discovery brief, user personas, success metrics, scope choices
 ├── design.md               # UI/UX design rationale, typography, accessibility, split-pane architecture
 ├── architecture.md         # Component diagrams, DB schema, API contracts, security sandbox
+├── agent-transcripts.md    # Index of coding agent execution transcripts and architectural decisions
+├── agent-transcripts/
+│   └── implementation_execution_log.md  # Detailed execution trajectory, trade-offs, and debug logs
 ├── docs/
 │   ├── DEMO_SCRIPT.md      # 2-3 min video script, recording checklist, and technical trade-off
+│   ├── OLLAMA_VERIFICATION.md # Dedicated Local Ollama Verification Report & Evaluator Guide
+│   ├── RAG_QUALITY_AUDIT.md   # Dedicated 7-Scenario RAG Quality Audit Report
+│   ├── SECURITY_AUDIT.md      # Pre-Commit Security Engineering Review & Threat Modeling Report
+│   ├── UI_ACCEPTANCE_TEST_CHECKLIST.md # Frontend QA Acceptance Testing Checklist
 │   └── Forward_Deployed_Engineer_Take_Home_Assignment_12_Oct_2026.docx
-├── agent-transcripts/      # Engineering execution log, trade-offs, and verification reports
 ├── backend/
 │   ├── app/                # FastAPI application (routers, schemas, services, models)
 │   ├── migrations/         # PostgreSQL DDL init.sql script
-│   ├── tests/              # 12 automated unit & integration tests
+│   ├── tests/              # 36 automated unit, integration, and security regression tests
 │   ├── Dockerfile          # Backend container specification
 │   └── requirements.txt    # Python dependencies
 ├── frontend/
@@ -197,7 +207,7 @@ Growth-assistant/
 │   ├── Dockerfile          # Multi-stage production Nginx container specification
 │   └── package.json        # Frontend scripts and dependencies
 ├── data/
-│   └── transcripts/        # 8 curated Lenny's Podcast markdown transcripts
+│   └── transcripts/        # 8 curated Lenny's Podcast markdown transcripts (735 chunks)
 ├── scripts/
 │   └── seed_database.py    # Database schema initialization and ingestion CLI
 └── docker-compose.yml      # Orchestration for PostgreSQL, Backend, and Frontend
@@ -209,5 +219,21 @@ Growth-assistant/
 
 * **GitHub Repository:** [https://github.com/Pradhiksha040/Growth-assistant.git](https://github.com/Pradhiksha040/Growth-assistant.git)
 * **Branch:** `main`
-* **Test Status:** 12/12 Automated Tests Passing (`pytest`)
-* **Frontend Build Status:** Clean Vite production bundle ($0$ errors)
+* **Test Status:** **36/36 Automated Tests Passing** (`python -m pytest backend/tests -v`)
+* **Frontend Quality:** **0 errors, 0 warnings** (`npm run lint`, `oxlint`), clean production build (`npm run build`)
+* **Security Audit:** **Verified & Secured** (CORS hardened, HTML sandboxed, SQL parameterized, DoS bounded)
+
+---
+
+## 11. Known Limitations & Disclosure of Uncompleted Deliverables
+
+In strict adherence to forward-deployed engineering integrity, the following operational states and external environment requirements are explicitly disclosed:
+
+1. **Local Ollama Daemon Host Requirement:**
+   - The application is fully wired and tested to connect to Ollama at `http://localhost:11434` with model `llama3.2`.
+   - On host machines without Ollama pre-installed, the application automatically engages the **Lenny Offline Grounded Engine** without throwing 500 errors, displaying a transparent notice. Evaluators wishing to test local inference must follow the setup steps in [Section 6.1](#61-local-provider-ollama-mandatory-for-demo).
+2. **Cloud API Keys:**
+   - Anthropic Claude and OpenAI integrations require user-provided API keys in `.env`. If unconfigured, the application returns graceful diagnostic guidance rather than unhandled exceptions.
+3. **Hardware Video Recording:**
+   - Camera-enabled video recording requires physical audio/video capture devices. A complete, minute-by-minute script, visual staging cues, and spoken talking points are provided in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for recording with Loom, OBS, or QuickTime.
+

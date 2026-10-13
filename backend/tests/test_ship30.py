@@ -24,7 +24,12 @@ def test_ship30_generation_success():
     assert data["evidence_sufficient"] is True
     assert len(data["title"]) > 0
     assert len(data["essay_markdown"]) > 100
-    assert data["word_count"] > 100
+    assert data["word_count"] >= 1000, f"Expected word count >= 1000, got {data['word_count']}"
+    assert "Part I:" in data["essay_markdown"]
+    assert "Part II:" in data["essay_markdown"]
+    assert "Part III:" in data["essay_markdown"]
+    assert "Part IV:" in data["essay_markdown"]
+    assert "Part V:" in data["essay_markdown"]
     assert len(data["citations"]) > 0
     assert data["artifact"] is not None
     assert data["artifact"]["type"] == "markdown"

@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.db.models import SessionModel, MessageModel, ArtifactModel
+from backend.app.schemas.artifact import ArtifactCreate
 from backend.app.schemas.chat import ChatRequest, ChatResponse, MessageResponse, CitationItem
 from backend.app.services.retrieval_service import retrieval_service
 from backend.app.services.llm_provider import provider_manager
 from backend.app.services.artifact_service import artifact_service
+from backend.app.services.claude_agent import claude_agent_integration
 
 SYSTEM_PROMPT = """You are "The Lenny Growth Assistant", an elite AI copilot for product managers and growth leaders.
 Your knowledge is strictly grounded in genuine transcripts from Lenny's Podcast.
@@ -120,14 +122,32 @@ class AgentService:
                     response_text = warning_header + fallback_text
                     model_used = f"{provider_key}->offline-grounded"
                 else:
-                    response_text, latency_ms = await provider.generate_response(
-                        prompt=request.message,
-                        system_prompt=SYSTEM_PROMPT,
-                        conversation_history=history_list,
-                        context_chunks=context_chunks,
-                        model=request.model
-                    )
-                    model_used = f"{provider_key}/{request.model or getattr(provider, 'default_model', 'default')}"
+                    # Attempt Claude Agent SDK if provider is anthropic
+                    sdk_response = None
+                    if provider_key == "anthropic" and claude_agent_integration.is_sdk_installed:
+                        sdk_text, sdk_diag = await claude_agent_integration.execute_agent_query(
+                            prompt=request.message,
+                            session_id=session_id,
+                            system_prompt=SYSTEM_PROMPT
+                        )
+                        if sdk_text:
+                            sdk_response = sdk_text
+                            model_used = "anthropic/claude-agent-sdk"
+                        elif sdk_diag:
+                            logger.info(f"Claude Agent SDK note: {sdk_diag}")
+
+                    if sdk_response:
+                        response_text = sdk_response
+                        latency_ms = int((time.time() - start_time) * 1000)
+                    else:
+                        response_text, latency_ms = await provider.generate_response(
+                            prompt=request.message,
+                            system_prompt=SYSTEM_PROMPT,
+                            conversation_history=history_list,
+                            context_chunks=context_chunks,
+                            model=request.model
+                        )
+                        model_used = f"{provider_key}/{request.model or getattr(provider, 'default_model', 'default')}"
         except Exception as e:
             logger.warning(f"Provider {provider_key} encountered error: {e}. Falling back to offline grounded engine.")
             fallback = provider_manager.providers["offline"]
@@ -185,11 +205,26 @@ class AgentService:
             if len(html_content.strip()) > 80: # meaningful artifact
                 artifact_service.create_artifact(
                     db=db,
-                    artifact_in=ArtifactModel(
+                    artifact_in=ArtifactCreate(
                         session_id=session_id,
                         type="html",
                         title=f"Generated Visual Component #{idx+1}",
                         content=html_content.strip()
+                    )
+                )
+
+        # Check for explicitly labeled Markdown artifacts
+        md_blocks = re.findall(r"```markdown\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+        for idx, md_content in enumerate(md_blocks):
+            if len(md_content.strip()) > 100:
+                first_line = md_content.strip().split("\n")[0].replace("#", "").strip() or f"Generated Document #{idx+1}"
+                artifact_service.create_artifact(
+                    db=db,
+                    artifact_in=ArtifactCreate(
+                        session_id=session_id,
+                        type="markdown",
+                        title=first_line[:60],
+                        content=md_content.strip()
                     )
                 )
 

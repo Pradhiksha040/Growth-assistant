@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import type { Session, Message, Artifact, ProvidersResponse, TranscriptMetadata, HealthStatus } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar';
@@ -23,6 +23,7 @@ export function App() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [suggestedFollowups, setSuggestedFollowups] = useState<string[]>([]);
 
   // Modals
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false);
@@ -30,40 +31,38 @@ export function App() {
   const [isTranscriptsModalOpen, setIsTranscriptsModalOpen] = useState(false);
 
   // Load initial environment metadata
-  const loadInitialData = useCallback(async () => {
-    try {
-      const [healthData, provData, transData, sessData] = await Promise.all([
-        api.getHealth().catch(() => null),
-        api.listProviders().catch(() => null),
-        api.listTranscripts().catch(() => []),
-        api.listSessions().catch(() => [])
-      ]);
-
-      if (healthData) setHealth(healthData);
-      if (provData) setProvidersData(provData);
-      if (transData) setTranscripts(transData);
-      if (sessData) {
-        setSessions(sessData);
-        if (sessData.length > 0 && !activeSessionId) {
-          setActiveSessionId(sessData[0].id);
-        }
-      }
-    } catch (err) {
-      console.error('Initial load failed:', err);
-    }
-  }, [activeSessionId]);
-
   useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
+    let isMounted = true;
+    Promise.all([
+      api.getHealth().catch(() => null),
+      api.listProviders().catch(() => null),
+      api.listTranscripts().catch(() => []),
+      api.listSessions().catch(() => [])
+    ])
+      .then(([healthData, provData, transData, sessData]) => {
+        if (!isMounted) return;
+        if (healthData) setHealth(healthData);
+        if (provData) setProvidersData(provData);
+        if (transData) setTranscripts(transData);
+        if (sessData) {
+          setSessions(sessData);
+          if (sessData.length > 0) {
+            setActiveSessionId((prev) => prev || sessData[0].id);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Initial load failed:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Load messages & artifacts when activeSessionId changes
   useEffect(() => {
-    if (!activeSessionId) {
-      setMessages([]);
-      setArtifacts([]);
-      return;
-    }
+    if (!activeSessionId) return;
 
     let isMounted = true;
     Promise.all([
@@ -73,19 +72,20 @@ export function App() {
       if (!isMounted) return;
       setMessages(msgs);
       setArtifacts(arts);
-      if (arts.length > 0 && !activeArtifact) {
-        setActiveArtifact(arts[0]);
+      if (arts.length > 0) {
+        setActiveArtifact((prev) => prev || arts[0]);
       }
     });
 
     return () => {
       isMounted = false;
     };
-  }, [activeSessionId, activeArtifact]);
+  }, [activeSessionId]);
 
   // Handler: Select Session
   const handleSelectSession = (id: string) => {
     setActiveSessionId(id);
+    setSuggestedFollowups([]);
   };
 
   // Handler: Create New Chat
@@ -97,6 +97,7 @@ export function App() {
       setMessages([]);
       setArtifacts([]);
       setActiveArtifact(null);
+      setSuggestedFollowups([]);
       setIsArtifactViewerOpen(false);
     } catch (err) {
       console.error('Failed to create new chat:', err);
@@ -171,6 +172,8 @@ export function App() {
         res.message
       ]);
 
+      setSuggestedFollowups(res.suggested_followups || []);
+
       // Check if new artifacts were created
       const currentArts = await api.listArtifacts(res.session_id).catch(() => []);
       setArtifacts(currentArts);
@@ -194,6 +197,15 @@ export function App() {
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handler: Regenerate Response
+  const handleRegenerate = (_msg: Message) => {
+    const userMsgs = messages.filter((m) => m.role === 'user');
+    if (userMsgs.length > 0) {
+      const lastUser = userMsgs[userMsgs.length - 1];
+      handleSendMessage(lastUser.content);
     }
   };
 
@@ -234,6 +246,8 @@ export function App() {
           messages={messages}
           isLoading={isLoading}
           onSendMessage={handleSendMessage}
+          onRegenerate={handleRegenerate}
+          suggestedFollowups={suggestedFollowups}
           onOpenShip30={() => setIsShip30ModalOpen(true)}
           onOpenProviders={() => setIsProviderModalOpen(true)}
           activeProvider={currentProvider}

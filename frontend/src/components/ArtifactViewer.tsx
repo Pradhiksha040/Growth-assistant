@@ -114,7 +114,11 @@ export const ArtifactViewer: React.FC<ArtifactViewerProps> = ({
 
       {/* Main content body */}
       <div className="artifact-body">
-        {viewMode === 'code' ? (
+        {!artifact.content?.trim() ? (
+          <div className="empty-artifact-state">
+            <p>⚠️ No displayable content available for this artifact.</p>
+          </div>
+        ) : viewMode === 'code' ? (
           <div className="artifact-code-view">
             <pre>
               <code>{artifact.content}</code>

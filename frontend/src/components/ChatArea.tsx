@@ -7,6 +7,8 @@ interface ChatAreaProps {
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (text: string) => void;
+  onRegenerate?: (message: Message) => void;
+  suggestedFollowups?: string[];
   onOpenShip30: (initialTopic?: string) => void;
   onOpenProviders: () => void;
   activeProvider: ProviderInfo | null;
@@ -22,6 +24,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   messages,
   isLoading,
   onSendMessage,
+  onRegenerate,
+  suggestedFollowups = [],
   onOpenShip30,
   onOpenProviders,
   activeProvider,
@@ -307,6 +311,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       >
                         {copiedMsgId === msg.id ? '✓ Copied' : '📋 Copy'}
                       </button>
+                      {onRegenerate && (
+                        <button
+                          type="button"
+                          className="msg-action-btn"
+                          onClick={() => onRegenerate(msg)}
+                          title="Regenerate this response"
+                        >
+                          🔄 Regenerate
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="msg-action-btn"
@@ -321,6 +335,25 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               </div>
             );
           })
+        )}
+
+        {/* Suggested Follow-ups */}
+        {suggestedFollowups && suggestedFollowups.length > 0 && !isLoading && (
+          <div className="suggested-followups-bar">
+            <span className="followups-label">Suggested follow-ups:</span>
+            <div className="followup-chips">
+              {suggestedFollowups.map((suggestion, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="followup-chip-btn"
+                  onClick={() => onSendMessage(suggestion)}
+                >
+                  {suggestion} →
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Loading Indicator */}

@@ -54,13 +54,12 @@ class Settings(BaseSettings):
     TOP_K_RETRIEVAL: int = 5
     SIMILARITY_THRESHOLD: float = 0.15
     
-    # CORS Configuration
+    # CORS Configuration - Explicit allowed trusted frontend origins
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://localhost:3000",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "*"
+        "http://127.0.0.1:3000"
     ]
     
     # Logging

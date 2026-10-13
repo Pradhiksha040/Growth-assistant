@@ -15,8 +15,8 @@ class CitationItem(BaseModel):
     relevance_score: Optional[float] = Field(None, description="Similarity or relevance score")
 
 class MessageCreate(BaseModel):
-    role: str = Field(..., description="'user', 'assistant', or 'system'")
-    content: str = Field(..., min_length=1)
+    role: str = Field(..., max_length=50, description="'user', 'assistant', or 'system'")
+    content: str = Field(..., min_length=1, max_length=50000)
 
 class MessageResponse(BaseModel):
     id: str
@@ -31,10 +31,10 @@ class MessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class ChatRequest(BaseModel):
-    session_id: Optional[str] = Field(None, description="Existing session id or null for new session")
-    message: str = Field(..., min_length=1, description="User prompt or question")
-    provider: Optional[str] = Field(None, description="Override active provider ('ollama', 'anthropic', 'openai', 'offline')")
-    model: Optional[str] = Field(None, description="Override model name")
+    session_id: Optional[str] = Field(None, max_length=100, description="Existing session id or null for new session")
+    message: str = Field(..., min_length=1, max_length=10000, description="User prompt or question")
+    provider: Optional[str] = Field(None, max_length=50, description="Override active provider ('ollama', 'anthropic', 'openai', 'offline')")
+    model: Optional[str] = Field(None, max_length=100, description="Override model name")
 
 class ChatResponse(BaseModel):
     session_id: str

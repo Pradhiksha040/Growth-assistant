@@ -17,15 +17,26 @@ from backend.app.schemas.artifact import ArtifactCreate, ArtifactResponse
 from backend.app.core.logging import logger
 
 DANGEROUS_HTML_PATTERNS = [
+    # Full script blocks and any orphaned/unclosed script tags
     re.compile(r"<\s*script[^>]*>.*?<\s*/\s*script\s*>", re.IGNORECASE | re.DOTALL),
+    re.compile(r"<\s*/?\s*script\b[^>]*>", re.IGNORECASE),
+    # Frames, objects, embeds, applets
     re.compile(r"<\s*iframe[^>]*>.*?<\s*/\s*iframe\s*>", re.IGNORECASE | re.DOTALL),
+    re.compile(r"<\s*/?\s*iframe\b[^>]*>", re.IGNORECASE),
     re.compile(r"<\s*object[^>]*>.*?<\s*/\s*object\s*>", re.IGNORECASE | re.DOTALL),
-    re.compile(r"<\s*embed[^>]*>", re.IGNORECASE),
+    re.compile(r"<\s*/?\s*object\b[^>]*>", re.IGNORECASE),
+    re.compile(r"<\s*/?\s*embed\b[^>]*>", re.IGNORECASE),
+    re.compile(r"<\s*/?\s*applet\b[^>]*>", re.IGNORECASE),
+    # Form elements and base tag hijacking
     re.compile(r"<\s*form[^>]*>.*?<\s*/\s*form\s*>", re.IGNORECASE | re.DOTALL),
-    re.compile(r"on\w+\s*=\s*[\"'][^\"']*[\"']", re.IGNORECASE), # onclick, onerror, etc.
-    re.compile(r"on\w+\s*=\s*[^>\s]+", re.IGNORECASE),
-    re.compile(r"href\s*=\s*[\"']\s*javascript:[^\"']*[\"']", re.IGNORECASE),
-    re.compile(r"src\s*=\s*[\"']\s*javascript:[^\"']*[\"']", re.IGNORECASE),
+    re.compile(r"<\s*/?\s*form\b[^>]*>", re.IGNORECASE),
+    re.compile(r"<\s*/?\s*base\b[^>]*>", re.IGNORECASE),
+    re.compile(r"<\s*/?\s*link\b[^>]*>", re.IGNORECASE),
+    # Inline event handlers (onclick, onerror, onload, onmouseover, etc.)
+    re.compile(r"\s+on[a-zA-Z]+\s*=\s*[\"'][^\"']*[\"']", re.IGNORECASE),
+    re.compile(r"\s+on[a-zA-Z]+\s*=\s*[^>\s]+", re.IGNORECASE),
+    # Dangerous URI schemes (javascript:, vbscript:, data:text/html)
+    re.compile(r"(?:href|src|action|formaction|xlink:href|data)\s*=\s*[\"']?\s*(?:javascript|vbscript|data\s*:\s*text\/html):[^\"'>\s]*", re.IGNORECASE),
 ]
 
 SAFE_CSP_META = (

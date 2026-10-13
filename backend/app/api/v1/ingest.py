@@ -23,9 +23,13 @@ def run_ingestion(req: IngestRequest, db: Session = Depends(get_db)):
         result = retrieval_service.ingest_local_transcripts(db)
         return IngestResponse(**result)
     except Exception as e:
+        from backend.app.core.logging import logger
+        from backend.app.core.config import settings
+        logger.error(f"Ingestion process error: {e}", exc_info=True)
+        detail = f"Ingestion process failed: {str(e)}" if settings.DEBUG else "Ingestion process encountered an internal error."
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ingestion process failed: {str(e)}"
+            detail=detail
         )
 
 @router.get("/status", response_model=KnowledgeStatusResponse)

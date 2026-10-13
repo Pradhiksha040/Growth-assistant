@@ -22,7 +22,11 @@ async def generate_ship30_essay(request: Ship30Request, db: Session = Depends(ge
         response = await ship30_service.generate_essay(request, db)
         return response
     except Exception as e:
+        from backend.app.core.logging import logger
+        from backend.app.core.config import settings
+        logger.error(f"Ship 30 essay generation error: {e}", exc_info=True)
+        detail = f"Ship 30 essay generation failed: {str(e)}" if settings.DEBUG else "Ship 30 essay generation encountered an internal error."
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ship 30 essay generation failed: {str(e)}"
+            detail=detail
         )

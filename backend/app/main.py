@@ -52,12 +52,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Middleware
+# Secure CORS Configuration
+is_wildcard_cors = "*" in settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=not is_wildcard_cors,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -74,9 +75,14 @@ async def add_process_time_header(request: Request, call_next):
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+    content = {
+        "detail": "An unexpected server error occurred. Please consult backend logs."
+    }
+    if settings.DEBUG:
+        content["error"] = str(exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "An unexpected server error occurred. Please consult backend logs.", "error": str(exc)}
+        content=content
     )
 
 # Include root health and v1 routers

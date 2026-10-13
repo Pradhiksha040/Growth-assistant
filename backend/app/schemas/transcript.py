@@ -16,8 +16,8 @@ class TranscriptMetadata(BaseModel):
     chunk_count: int = 0
 
 class IngestRequest(BaseModel):
-    source: Optional[str] = Field("local", description="'local' folder or 'github'")
-    max_episodes: Optional[int] = Field(20, description="Max episodes to ingest from remote")
+    source: Optional[str] = Field("local", max_length=50, description="'local' folder or 'github'")
+    max_episodes: Optional[int] = Field(20, ge=1, le=100, description="Max episodes to ingest from remote")
 
 class IngestResponse(BaseModel):
     status: str

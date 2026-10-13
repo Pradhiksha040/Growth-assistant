@@ -52,18 +52,37 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
       } else if (matchText.startsWith('[') && matchText.includes('](')) {
         const endLabel = matchText.indexOf('](');
         const label = matchText.slice(1, endLabel);
-        const url = matchText.slice(endLabel + 2, -1);
-        tokens.push(
-          <a
-            key={key++}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="markdown-link"
-          >
-            {label}
-          </a>
-        );
+        const rawUrl = matchText.slice(endLabel + 2, -1).trim();
+        
+        // Strict protocol validation to prevent javascript:, vbscript:, or data: XSS
+        const lowerUrl = rawUrl.toLowerCase();
+        const isSafeProtocol =
+          lowerUrl.startsWith('https://') ||
+          lowerUrl.startsWith('http://') ||
+          lowerUrl.startsWith('mailto:') ||
+          lowerUrl.startsWith('#') ||
+          lowerUrl.startsWith('/');
+
+        if (isSafeProtocol) {
+          tokens.push(
+            <a
+              key={key++}
+              href={rawUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="markdown-link"
+            >
+              {label}
+            </a>
+          );
+        } else {
+          // Render harmless label without executable href
+          tokens.push(
+            <span key={key++} className="markdown-link-disabled" title="Untrusted link scheme blocked for security">
+              {label}
+            </span>
+          );
+        }
       }
 
       remaining = remaining.substring(match.index + matchText.length);

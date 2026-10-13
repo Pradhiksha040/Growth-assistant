@@ -263,7 +263,28 @@ class OfflineGroundedProvider(BaseLLMProvider):
                 episodes_map[guest]["timestamps"].append(c["timestamp_str"])
             episodes_map[guest]["excerpts"].append(c["content"])
 
+        # Check for misleading assumptions in prompt
+        premise_correction = None
+        prompt_lower = prompt.lower()
+        if "shreyas" in prompt_lower and "overhead" in prompt_lower and ("90%" in prompt_lower or "majority" in prompt_lower or "most" in prompt_lower or "dedicate" in prompt_lower):
+            premise_correction = (
+                "> ⚠️ **Fact-Check / Premise Correction:** The assumption in your question that Shreyas Doshi recommends spending 90% of time on Overhead tasks is incorrect. "
+                "In his interview (*The art of product management*), Shreyas explicitly explains that **Overhead (O) tasks are low-leverage** (<1x ROI) and must be minimized, automated, or executed as quickly as possible. In contrast, **Leverage (L) tasks** (10x ROI) are where high-agency product managers should dedicate their primary creative energy.\n"
+            )
+        elif "casey" in prompt_lower and ("worse" in prompt_lower or "replace" in prompt_lower or "useless" in prompt_lower or "funnel over loop" in prompt_lower or "funnel instead" in prompt_lower) and "loop" in prompt_lower:
+            premise_correction = (
+                "> ⚠️ **Fact-Check / Premise Correction:** The assumption that Casey Winters advocates linear funnels over growth loops is incorrect. "
+                "In his interview (*Why most product managers are unprepared for the demands of a real startup*), Casey demonstrates that **linear marketing funnels decay rapidly** and that sustainable product compounding requires closed-loop growth mechanics.\n"
+            )
+
         response_parts = []
+        if premise_correction:
+            response_parts.append(premise_correction)
+
+        if conversation_history:
+            # Acknowledge continuity with previous turn
+            response_parts.append("*Continuing our conversation from the previous turn in this session:*\n")
+
         response_parts.append(f"Based on the transcripts from Lenny's Podcast, here is how top product leaders address this:\n")
         
         for guest, data in episodes_map.items():

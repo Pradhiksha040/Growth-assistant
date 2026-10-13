@@ -30,6 +30,8 @@ CORE OPERATIONAL RULES:
    Do NOT speculate, guess, or fabricate external facts.
 4. Tone & Style: Be authoritative, structured, and pragmatic. Use bullet points, bold key terms, and concise paragraphs.
 5. Actionable Advice: Product managers want frameworks and execution playbooks, not vague generalities.
+6. Misleading Assumptions: If the user's question contains a false, incorrect, or misleading premise (e.g., claiming a guest recommended something opposite to what they actually said, or reversing a framework), you MUST explicitly correct the false premise immediately using the factual evidence from the transcript before answering.
+7. Conversational Continuity: Maintain context with prior conversation turns in this session. When a follow-up query refers to "he", "she", "they", "this framework", or asks for clarification, resolve the reference using the prior messages in this session.
 """
 
 class AgentService:
@@ -59,38 +61,97 @@ class AgentService:
                 db.add(session_obj)
                 db.commit()
 
-        # 2. Persist user message
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+
+        # 2. Guard: Check if knowledge base is completely empty
+        from backend.app.db.models import TranscriptModel
+        total_transcripts = db.query(TranscriptModel).count()
+        if total_transcripts == 0:
+            empty_kb_msg = (
+                "⚠️ **No Lenny's Podcast Transcripts Found in Knowledge Base.**\n\n"
+                "The assistant requires transcript data to ground answers without hallucination. "
+                "To ingest the authentic transcript archive, please run:\n\n"
+                "```bash\n"
+                "python -m backend.scripts.seed_database\n"
+                "```\n"
+                "Or trigger the ingestion endpoint via:\n"
+                "```bash\n"
+                "curl -X POST http://localhost:8000/api/v1/ingest -H \"Content-Type: application/json\" -d '{\"source\": \"local\"}'\n"
+                "```\n\n"
+                "Once ingested, the assistant will index genuine transcripts from Adam Fishman, Shreyas Doshi, Elena Verna, Casey Winters, and more."
+            )
+            asst_msg = MessageModel(
+                id=str(uuid.uuid4()),
+                session_id=session_id,
+                role="assistant",
+                content=empty_kb_msg,
+                citations_json="[]",
+                model_used="system/empty-kb",
+                latency_ms=1,
+                created_at=now_utc
+            )
+            db.add(asst_msg)
+            db.commit()
+            return ChatResponse(
+                session_id=session_id,
+                message=MessageResponse(
+                    id=asst_msg.id,
+                    session_id=session_id,
+                    role=asst_msg.role,
+                    content=asst_msg.content,
+                    citations=[],
+                    model_used=asst_msg.model_used,
+                    latency_ms=1,
+                    created_at=now_utc
+                ),
+                suggested_followups=["How do I seed the database?"],
+                evidence_sufficient=False
+            )
+
+        # 3. Persist user message
         user_msg = MessageModel(
             id=str(uuid.uuid4()),
             session_id=session_id,
             role="user",
-            content=request.message
+            content=request.message,
+            created_at=now_utc
         )
         db.add(user_msg)
         db.commit()
 
-        # 3. Retrieve conversation history for context
+        # 4. Retrieve conversation history for context
         past_msgs = db.query(MessageModel).filter(
             MessageModel.session_id == session_id
         ).order_by(MessageModel.created_at.asc()).all()
         
         history_list = [{"role": m.role, "content": m.content} for m in past_msgs[:-1]] # exclude just-added user msg
 
-        # 4. Search transcripts
+        # 5. Search transcripts with follow-up contextual expansion
+        search_query = request.message
+        pronoun_triggers = {"he", "him", "his", "she", "her", "hers", "they", "them", "their", "it", "this", "that", "these", "those"}
+        query_words = set(re.findall(r"\b[a-zA-Z]+\b", request.message.lower()))
+        if history_list and query_words.intersection(pronoun_triggers):
+            recent_context_parts = []
+            for h in reversed(history_list[-4:]):
+                recent_context_parts.append(h["content"][:200])
+            context_snippet = " ".join(recent_context_parts)
+            search_query = f"{request.message} {context_snippet}"
+
         context_chunks, evidence_sufficient = retrieval_service.search(
-            query=request.message,
+            query=search_query,
             db=db,
             top_k=settings.TOP_K_RETRIEVAL
         )
-        citations = retrieval_service.to_citation_items(context_chunks)
+        citations = retrieval_service.to_citation_items(context_chunks) if evidence_sufficient else []
 
-        # 5. Route to active LLM Provider
+        # 6. Route to active LLM Provider
         provider_key, provider = await provider_manager.get_active_provider(request.provider)
         logger.info(f"Using provider '{provider_key}' for session {session_id} (evidence sufficient: {evidence_sufficient})")
 
         try:
-            if not evidence_sufficient and not context_chunks:
-                # Handle complete lack of evidence directly
+            if not evidence_sufficient:
+                # Handle lack of evidence directly
                 response_text = (
                     "The available Lenny's Podcast transcripts do not establish the answer to this question. "
                     "I am strictly grounded in genuine podcast interviews and will not fabricate information. "
@@ -98,10 +159,12 @@ class AgentService:
                     "- Building high-performing growth teams (Adam Fishman)\n"
                     "- Growth loops vs. funnels and marketplace dynamics (Casey Winters, Brian Balfour)\n"
                     "- Product-Led Growth and Product-Led Sales (Elena Verna)\n"
-                    "- Product leadership, high agency, and the LNO framework (Shreyas Doshi)\n"
+                    "- Product leadership, pre-mortems, and high agency (Shreyas Doshi)\n"
                     "- The Adjacent User Theory (Bangaly Kaba)\n"
-                    "- Reforge growth metrics and experimentation trees (Fareed Mosavat)"
+                    "- Reforge growth metrics and experimentation trees (Fareed Mosavat)\n"
+                    "- Startup product management, kindle vs fire strategies (Casey Winters)"
                 )
+                citations = []
                 latency_ms = int((time.time() - start_time) * 1000)
                 model_used = f"{provider_key}/grounded-fallback"
             else:
